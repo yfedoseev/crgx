@@ -1,0 +1,259 @@
+mod cache;
+mod cli;
+mod config;
+mod download;
+mod error;
+mod exec;
+mod registry;
+mod resolve;
+
+use std::process;
+
+fn main() {
+    let args = std::env::args().skip(1); // skip argv[0]
+    let command = match cli::parse_args(args) {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            eprintln!("crgx: {e}");
+            process::exit(2);
+        }
+    };
+
+    match run(command) {
+        Ok(code) => process::exit(code),
+        Err(e) => {
+            eprintln!("crgx: {e}");
+            process::exit(1);
+        }
+    }
+}
+
+fn run(command: cli::Command) -> Result<i32, error::CrgxError> {
+    match command {
+        cli::Command::Help => {
+            println!("{}", cli::help_text());
+            Ok(0)
+        }
+        cli::Command::Version => {
+            println!("crgx {}", env!("CARGO_PKG_VERSION"));
+            Ok(0)
+        }
+        cli::Command::CacheDir => {
+            let cache = cache::Cache::open()?;
+            println!("{}", cache.dir().display());
+            Ok(0)
+        }
+        cli::Command::CacheList => {
+            let cache = cache::Cache::open()?;
+            let entries = cache.list()?;
+            if entries.is_empty() {
+                println!("No cached binaries.");
+            } else {
+                for entry in entries {
+                    println!(
+                        "  {} v{} ({})",
+                        entry.crate_name, entry.version, entry.source
+                    );
+                }
+            }
+            Ok(0)
+        }
+        cli::Command::CacheClean => {
+            let cache = cache::Cache::open()?;
+            let count = cache.clean()?;
+            println!("Removed {count} cached entries.");
+            Ok(0)
+        }
+        cli::Command::Run(args) => run_crate(args),
+    }
+}
+
+fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
+    let cache = cache::Cache::open()?;
+
+    // Determine the version to use
+    let resolved_version = match &args.spec.version {
+        config::VersionReq::Exact(v) => {
+            // Exact version — check cache, use if present
+            if let Some(entry) = cache.lookup(&args.spec.name, &v.to_string())? {
+                let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                let bin_path = cache.bin_path(&args.spec.name, &v.to_string(), bin_name);
+                return exec::exec(&bin_path, &args.tool_args);
+            }
+            if args.no_install {
+                return Err(error::CrgxError::NotCached(args.spec.to_string()));
+            }
+            v.clone()
+        }
+        config::VersionReq::Latest => {
+            // Always check registry for latest
+            if args.no_install {
+                // With --no-install, just use whatever is cached
+                if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+                    let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                    let bin_path =
+                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    return exec::exec(&bin_path, &args.tool_args);
+                }
+                return Err(error::CrgxError::NotCached(args.spec.to_string()));
+            }
+            eprintln!("crgx: checking crates.io for latest version of {}...", args.spec.name);
+            let info = registry::get_crate(&args.spec.name)?;
+            let version = registry::resolve_version(&info, &args.spec.version)?;
+            // Check if we already have this version cached
+            if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {
+                cache.touch_checked(&args.spec.name, &version.to_string())?;
+                let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                let bin_path =
+                    cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
+                return exec::exec(&bin_path, &args.tool_args);
+            }
+            version
+        }
+        config::VersionReq::Unspecified => {
+            // Use cached if fresh, otherwise check registry
+            if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+                if !cache.is_stale(&args.spec.name, &entry.version)? {
+                    let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                    let bin_path =
+                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    return exec::exec(&bin_path, &args.tool_args);
+                }
+                // Stale — check for updates
+                eprintln!("crgx: checking for updates to {}...", args.spec.name);
+            }
+            if args.no_install {
+                if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+                    let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                    let bin_path =
+                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    return exec::exec(&bin_path, &args.tool_args);
+                }
+                return Err(error::CrgxError::NotCached(args.spec.to_string()));
+            }
+            let info = registry::get_crate(&args.spec.name)?;
+            let version = registry::resolve_version(&info, &args.spec.version)?;
+            // Check if we already have this version cached
+            if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {
+                cache.touch_checked(&args.spec.name, &version.to_string())?;
+                let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                let bin_path =
+                    cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
+                return exec::exec(&bin_path, &args.tool_args);
+            }
+            version
+        }
+    };
+
+    // Prompt for confirmation
+    prompt_download(&args.spec.name, &resolved_version.to_string(), args.yes)?;
+
+    // Resolve binary URL
+    eprintln!(
+        "crgx: resolving binary for {} v{} ({})...",
+        args.spec.name,
+        resolved_version,
+        config::TargetTriple::host()
+    );
+
+    let info = registry::get_crate(&args.spec.name)?;
+    let crate_version = info
+        .versions
+        .iter()
+        .find(|v| v.num == resolved_version.to_string())
+        .ok_or_else(|| error::CrgxError::VersionNotFound {
+            crate_name: args.spec.name.clone(),
+            version: resolved_version.to_string(),
+        })?;
+
+    // Determine bin name
+    let bin_name = resolve_bin_name(&args.spec.name, args.bin.as_deref(), crate_version)?;
+
+    let target = config::TargetTriple::host();
+    let resolution = resolve::resolve(
+        &args.spec.name,
+        &resolved_version.to_string(),
+        target,
+        &bin_name,
+        &info,
+        args.allow_build,
+    )?;
+
+    // Download and extract
+    eprintln!("crgx: downloading from {}...", resolution.source);
+    let binary_data = download::download_and_extract(
+        &resolution.url,
+        &bin_name,
+        resolution.bin_path.as_deref(),
+    )?;
+
+    // Store in cache
+    cache.store(
+        &args.spec.name,
+        &resolved_version.to_string(),
+        &bin_name,
+        &binary_data,
+        &resolution.source,
+    )?;
+
+    eprintln!("crgx: cached {} v{}", args.spec.name, resolved_version);
+
+    // Execute
+    let bin_path = cache.bin_path(&args.spec.name, &resolved_version.to_string(), &bin_name);
+    exec::exec(&bin_path, &args.tool_args)
+}
+
+fn resolve_bin_name(
+    crate_name: &str,
+    bin_override: Option<&str>,
+    version: &registry::CrateVersion,
+) -> Result<String, error::CrgxError> {
+    if let Some(name) = bin_override {
+        return Ok(name.to_string());
+    }
+
+    let bins: Vec<&str> = version.bin_names.iter().map(|s| s.as_str()).collect();
+
+    if bins.is_empty() {
+        // No bin info from registry — assume crate name
+        return Ok(crate_name.to_string());
+    }
+
+    if bins.len() == 1 {
+        return Ok(bins[0].to_string());
+    }
+
+    // Multiple bins — prefer one matching crate name
+    if bins.contains(&crate_name) {
+        return Ok(crate_name.to_string());
+    }
+
+    Err(error::CrgxError::AmbiguousBinary {
+        crate_name: crate_name.to_string(),
+        bins: bins.join(", "),
+    })
+}
+
+fn prompt_download(crate_name: &str, version: &str, auto_yes: bool) -> Result<(), error::CrgxError> {
+    if auto_yes {
+        return Ok(());
+    }
+
+    use std::io::IsTerminal;
+    if !std::io::stdin().is_terminal() {
+        return Err(error::CrgxError::NotATty);
+    }
+
+    let prompt = format!("Download and run {crate_name} v{version}?");
+    let confirmed = dialoguer::Confirm::new()
+        .with_prompt(prompt)
+        .default(false)
+        .interact()
+        .map_err(|e| error::CrgxError::Other(e.to_string()))?;
+
+    if confirmed {
+        Ok(())
+    } else {
+        Err(error::CrgxError::DownloadDeclined)
+    }
+}
