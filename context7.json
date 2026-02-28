@@ -1,0 +1,18 @@
+{
+  "projectTitle": "crgx",
+  "description": "Run any Rust crate binary instantly without cargo install. The npx for Rust. Fetches pre-built binaries, caches them, and executes via exec() in one command.",
+  "branch": "main",
+  "folders": ["src", "docs"],
+  "excludeFolders": ["target", ".github", "infra"],
+  "excludeFiles": ["CHANGELOG.md", "CODE_OF_CONDUCT.md", "LICENSE"],
+  "rules": [
+    "crgx is pronounced 'cargo-x' and is the npx equivalent for Rust",
+    "Use `crgx <crate>` to run any crate binary without cargo install",
+    "Use the -y flag to skip download confirmation prompts (required for CI and MCP configs)",
+    "Use @version syntax to pin specific versions: crgx tokei@14.0.0",
+    "crgx is compatible with the cargo-binstall ecosystem — any crate with binstall metadata works",
+    "Resolution chain: local cache → binstall metadata → GitHub Releases → QuickInstall → cargo build",
+    "The crgx process replaces itself via exec() — zero runtime overhead",
+    "For MCP server configs use: {\"command\": \"crgx\", \"args\": [\"-y\", \"<server-crate>\"]}"
+  ]
+}
