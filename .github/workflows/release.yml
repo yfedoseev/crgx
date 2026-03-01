@@ -223,7 +223,7 @@ jobs:
           gh release download "v${VERSION}" \
             --pattern "crgx-macos-aarch64-${VERSION}.tar.gz" \
             --pattern "crgx-macos-x86_64-${VERSION}.tar.gz" \
-            --pattern "crgx-linux-x86_64-${VERSION}.tar.gz"
+            --pattern "crgx-linux-x86_64-musl-${VERSION}.tar.gz"
 
       - name: Compute SHA256 hashes
         id: hashes
@@ -232,7 +232,7 @@ jobs:
           cd release-archives
           echo "macos_arm=$(sha256sum crgx-macos-aarch64-${VERSION}.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
           echo "macos_x86=$(sha256sum crgx-macos-x86_64-${VERSION}.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
-          echo "linux_x86=$(sha256sum crgx-linux-x86_64-${VERSION}.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+          echo "linux_x86=$(sha256sum crgx-linux-x86_64-musl-${VERSION}.tar.gz | cut -d' ' -f1)" >> $GITHUB_OUTPUT
 
       - name: Generate Homebrew formula
         run: |

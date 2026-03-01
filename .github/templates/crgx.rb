@@ -15,7 +15,7 @@ class Crgx < Formula
   end
 
   on_linux do
-    url "https://github.com/yfedoseev/crgx/releases/download/v{{VERSION}}/crgx-linux-x86_64-{{VERSION}}.tar.gz"
+    url "https://github.com/yfedoseev/crgx/releases/download/v{{VERSION}}/crgx-linux-x86_64-musl-{{VERSION}}.tar.gz"
     sha256 "{{SHA256_LINUX_X86}}"
   end
 
