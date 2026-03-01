@@ -1,25 +1,41 @@
 # crgx
 
-npx for Rust — download and run any crate binary in one command.
+[![CI](https://github.com/yfedoseev/crgx/actions/workflows/ci.yml/badge.svg)](https://github.com/yfedoseev/crgx/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/crgx.svg)](https://crates.io/crates/crgx)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+**npx for Rust** — download and run any crate binary in one command.
 
 ```bash
-$ crgx tokei .
+crgx tokei .
 ```
 
 No `cargo install`. No permanent binaries. No ceremony.
 
 ## Install
 
+**Homebrew**
+
 ```bash
-brew install crgx
+brew install yfedoseev/tap/crgx
 ```
+
+**Cargo**
 
 ```bash
 cargo install crgx
 ```
 
+**Shell (Linux / macOS)**
+
 ```bash
 curl -fsSL crgx.dev/install.sh | sh
+```
+
+**PowerShell (Windows)**
+
+```powershell
+irm crgx.dev/install.ps1 | iex
 ```
 
 ## Usage
@@ -106,6 +122,10 @@ On first run, crgx resolves the crate from crates.io, downloads a pre-built bina
 
 Subsequent runs hit the cache and execute immediately.
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
