@@ -2,9 +2,9 @@ use serde::Deserialize;
 
 use crate::config::VersionReq;
 use crate::error::CrgxError;
+use crate::http;
 
 const CRATES_IO_API: &str = "https://crates.io/api/v1";
-const USER_AGENT: &str = concat!("crgx/", env!("CARGO_PKG_VERSION"));
 
 /// Crate information from crates.io.
 #[derive(Debug)]
@@ -46,8 +46,9 @@ struct ApiVersion {
 /// Fetch crate information from crates.io.
 pub fn get_crate(name: &str) -> Result<CrateInfo, CrgxError> {
     let url = format!("{CRATES_IO_API}/crates/{name}");
-    let mut response = ureq::get(&url)
-        .header("User-Agent", USER_AGENT)
+    let agent = http::agent();
+    let mut response = agent
+        .get(&url)
         .call()
         .map_err(|e| match &e {
             ureq::Error::StatusCode(404) => CrgxError::CrateNotFound(name.to_string()),
@@ -119,8 +120,9 @@ pub fn fetch_cargo_toml(
         "https://static.crates.io/crates/{name}/{name}-{version}.crate"
     );
 
-    let mut response = ureq::get(&url)
-        .header("User-Agent", USER_AGENT)
+    let agent = http::agent();
+    let mut response = agent
+        .get(&url)
         .call()
         .map_err(|e| match &e {
             ureq::Error::StatusCode(code) => CrgxError::HttpStatus {

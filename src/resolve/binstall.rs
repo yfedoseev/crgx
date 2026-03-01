@@ -1,9 +1,8 @@
 use crate::config::TargetTriple;
 use crate::error::CrgxError;
+use crate::http;
 use crate::registry::{self, BinstallMeta, CrateInfo};
 use crate::resolve::Resolution;
-
-const USER_AGENT: &str = concat!("crgx/", env!("CARGO_PKG_VERSION"));
 
 /// Try to resolve a binary URL using binstall metadata from the crate's Cargo.toml.
 pub fn resolve(
@@ -142,10 +141,8 @@ fn target_family_for(target: &str) -> &str {
 }
 
 fn url_exists(url: &str) -> Result<bool, CrgxError> {
-    match ureq::head(url)
-        .header("User-Agent", USER_AGENT)
-        .call()
-    {
+    let agent = http::agent();
+    match agent.head(url).call() {
         Ok(_) => Ok(true),
         Err(ureq::Error::StatusCode(404)) => Ok(false),
         Err(ureq::Error::StatusCode(403)) => Ok(false),

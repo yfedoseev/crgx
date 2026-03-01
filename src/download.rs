@@ -2,8 +2,7 @@ use std::io::{self, Read};
 use std::path::Path;
 
 use crate::error::CrgxError;
-
-const USER_AGENT: &str = concat!("crgx/", env!("CARGO_PKG_VERSION"));
+use crate::http;
 
 /// Download a URL and extract the target binary.
 ///
@@ -18,19 +17,8 @@ pub fn download_and_extract(
         return read_local_binary(path, bin_name);
     }
 
-    let mut response = ureq::get(url)
-        .header("User-Agent", USER_AGENT)
-        .call()
-        .map_err(|e| match &e {
-            ureq::Error::StatusCode(code) => CrgxError::HttpStatus {
-                url: url.to_string(),
-                status: *code,
-            },
-            _ => CrgxError::Network(e.to_string()),
-        })?;
-
-    let body = response
-        .body_mut()
+    let agent = http::download_agent();
+    let body = http::get_with_retry(&agent, url)?
         .read_to_vec()
         .map_err(|e| CrgxError::Network(format!("download error: {e}")))?;
 

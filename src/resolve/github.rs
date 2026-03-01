@@ -1,9 +1,8 @@
 use serde::Deserialize;
 
 use crate::error::CrgxError;
+use crate::http;
 use crate::resolve::Resolution;
-
-const USER_AGENT: &str = concat!("crgx/", env!("CARGO_PKG_VERSION"));
 
 #[derive(Deserialize)]
 struct GitHubRelease {
@@ -40,8 +39,9 @@ pub fn resolve(
             "https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
         );
 
-        let mut response = match ureq::get(&url)
-            .header("User-Agent", USER_AGENT)
+        let agent = http::agent();
+        let mut response = match agent
+            .get(&url)
             .header("Accept", "application/vnd.github.v3+json")
             .call()
         {

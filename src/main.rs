@@ -4,6 +4,7 @@ mod config;
 mod download;
 mod error;
 mod exec;
+mod http;
 mod registry;
 mod resolve;
 
@@ -98,7 +99,24 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                 return Err(error::CrgxError::NotCached(args.spec.to_string()));
             }
             eprintln!("crgx: checking crates.io for latest version of {}...", args.spec.name);
-            let info = registry::get_crate(&args.spec.name)?;
+            let info = match registry::get_crate(&args.spec.name) {
+                Ok(info) => info,
+                Err(e) if http::is_network_error(&e) => {
+                    // Network failure — fall back to cached version if available
+                    if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+                        eprintln!(
+                            "crgx: network unavailable, using cached {} v{}",
+                            args.spec.name, entry.version
+                        );
+                        let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                        let bin_path =
+                            cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                        return exec::exec(&bin_path, &args.tool_args);
+                    }
+                    return Err(e);
+                }
+                Err(e) => return Err(e),
+            };
             let version = registry::resolve_version(&info, &args.spec.version)?;
             // Check if we already have this version cached
             if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {
@@ -112,7 +130,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
         }
         config::VersionReq::Unspecified => {
             // Use cached if fresh, otherwise check registry
-            if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+            let stale_entry = if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
                 if !cache.is_stale(&args.spec.name, &entry.version)? {
                     let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
                     let bin_path =
@@ -121,9 +139,12 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                 }
                 // Stale — check for updates
                 eprintln!("crgx: checking for updates to {}...", args.spec.name);
-            }
+                Some(entry)
+            } else {
+                None
+            };
             if args.no_install {
-                if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
+                if let Some(entry) = stale_entry {
                     let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
                     let bin_path =
                         cache.bin_path(&args.spec.name, &entry.version, bin_name);
@@ -131,7 +152,25 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                 }
                 return Err(error::CrgxError::NotCached(args.spec.to_string()));
             }
-            let info = registry::get_crate(&args.spec.name)?;
+            let info = match registry::get_crate(&args.spec.name) {
+                Ok(info) => info,
+                Err(e) if http::is_network_error(&e) => {
+                    // Network failure — fall back to stale cached version if available
+                    if let Some(entry) = stale_entry {
+                        eprintln!(
+                            "crgx: network unavailable, using cached {} v{}",
+                            args.spec.name, entry.version
+                        );
+                        cache.touch_checked(&args.spec.name, &entry.version)?;
+                        let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
+                        let bin_path =
+                            cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                        return exec::exec(&bin_path, &args.tool_args);
+                    }
+                    return Err(e);
+                }
+                Err(e) => return Err(e),
+            };
             let version = registry::resolve_version(&info, &args.spec.version)?;
             // Check if we already have this version cached
             if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {

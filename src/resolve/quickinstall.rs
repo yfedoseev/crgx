@@ -1,7 +1,6 @@
 use crate::error::CrgxError;
+use crate::http;
 use crate::resolve::Resolution;
-
-const USER_AGENT: &str = concat!("crgx/", env!("CARGO_PKG_VERSION"));
 
 /// Try to resolve a binary from cargo-quickinstall.
 pub fn resolve(
@@ -13,11 +12,8 @@ pub fn resolve(
         "https://github.com/cargo-bins/cargo-quickinstall/releases/download/{crate_name}-{version}/{crate_name}-{version}-{target}.tar.gz"
     );
 
-    // HEAD request to check if it exists
-    match ureq::head(&url)
-        .header("User-Agent", USER_AGENT)
-        .call()
-    {
+    let agent = http::agent();
+    match agent.head(&url).call() {
         Ok(_) => Ok(Some(Resolution {
             url,
             source: "cargo-quickinstall".to_string(),
