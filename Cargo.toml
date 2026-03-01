@@ -25,7 +25,7 @@ thiserror = "2"
 anyhow = "1"
 dirs = "6"
 semver = "1"
-dialoguer = "0.11"
+dialoguer = "0.12"
 url = "2"
 tempfile = "3"
 
