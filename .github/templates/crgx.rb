@@ -1,5 +1,5 @@
 class Crgx < Formula
-  desc "npx for Rust — download and run any crate binary in one command"
+  desc "Run any crate binary instantly — fetch, cache, and execute without cargo install"
   homepage "https://crgx.dev"
   version "{{VERSION}}"
   license "MIT"

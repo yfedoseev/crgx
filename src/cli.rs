@@ -100,7 +100,7 @@ pub fn parse_args(args: impl Iterator<Item = String>) -> Result<Command, String>
 pub fn help_text() -> String {
     format!(
         "\
-crgx {version} — npx/uvx for Rust
+crgx {version} — run any crate binary instantly
 
 USAGE:
     crgx [FLAGS] <crate>[@<version>] [tool-args...]

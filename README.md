@@ -4,13 +4,13 @@
 [![crates.io](https://img.shields.io/crates/v/crgx.svg)](https://crates.io/crates/crgx)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**npx for Rust** — download and run any crate binary in one command.
+**Run any crate binary instantly** — no cargo install, no compile wait, no ceremony.
 
 ```bash
 crgx tokei .
 ```
 
-No `cargo install`. No permanent binaries. No ceremony.
+Like [npx](https://docs.npmjs.com/cli/commands/npx) for the Rust ecosystem. Fetch, cache, and execute any crate binary in one command.
 
 ## Install
 

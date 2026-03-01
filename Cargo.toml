@@ -2,7 +2,7 @@
 name = "crgx"
 version = "0.1.0"
 edition = "2024"
-description = "npx/uvx for Rust — download and run Rust binaries in one command"
+description = "Run any crate binary instantly — fetch, cache, and execute without cargo install"
 license = "MIT"
 repository = "https://github.com/yfedoseev/crgx"
 homepage = "https://crgx.dev"
