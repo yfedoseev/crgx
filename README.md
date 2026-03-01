@@ -10,7 +10,24 @@
 crgx tokei .
 ```
 
-Like [npx](https://docs.npmjs.com/cli/commands/npx) for the Rust ecosystem. Fetch, cache, and execute any crate binary in one command.
+crgx is the [npx](https://docs.npmjs.com/cli/commands/npx) equivalent for the Rust ecosystem. It fetches pre-built binaries, caches them locally, and executes them in a single command — no compilation required. Any crate that works with [cargo-binstall](https://github.com/cargo-bins/cargo-binstall) works with crgx automatically.
+
+## Why crgx?
+
+- **No compilation** — downloads pre-built binaries in seconds instead of compiling for minutes
+- **No global install** — binaries live in crgx's own cache, not `~/.cargo/bin`
+- **One command** — `crgx tokei .` resolves, downloads, caches, and runs
+- **Works offline** — falls back to cached binaries when the network is unavailable
+- **MCP-ready** — drop `crgx -y <server>` into any MCP config with zero setup
+
+## How does crgx compare?
+
+| Tool | What it does | Compile? | Global install? | One command? |
+|------|-------------|----------|-----------------|-------------|
+| **crgx** | Fetch + cache + run pre-built binary | No | No (own cache) | Yes |
+| `cargo install` | Compile from source, install to ~/.cargo/bin | Yes (slow) | Yes | Yes |
+| `cargo binstall` | Install pre-built binary to ~/.cargo/bin | No | Yes | Yes |
+| npx (Node.js) | Run npm package binary | N/A | No | Yes |
 
 ## Install
 

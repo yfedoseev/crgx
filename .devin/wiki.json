@@ -1,0 +1,26 @@
+{
+  "repo_notes": [
+    {
+      "content": "crgx is the npx equivalent for the Rust ecosystem. It runs any crate binary instantly without cargo install by fetching pre-built binaries, caching them locally, and executing via exec(). Resolution chain: local cache → binstall metadata → GitHub Releases → QuickInstall → cargo build. The Rust source is in /src/, with modules for CLI parsing (cli.rs), crate registry (registry.rs), binary resolution (resolve/), download/extraction (download.rs), caching (cache.rs), and HTTP with retry logic (http.rs).",
+      "author": "maintainer"
+    },
+    {
+      "content": "Key usage: `crgx tokei .` runs tokei without installing. `crgx -y fossil-mcp` skips confirmation (needed for CI/MCP). `crgx tokei@14.0.0 .` pins an exact version cached forever. Bare names use 24h staleness. Network-resilient: 30s API timeout, 5min download timeout, automatic retries, offline fallback to cached binaries.",
+      "author": "maintainer"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Architecture Overview",
+      "purpose": "Document the module structure: main.rs orchestration, cli.rs argument parsing, registry.rs crates.io API, resolve/ multi-source binary resolution, download.rs archive extraction, cache.rs local storage, http.rs shared HTTP with retries"
+    },
+    {
+      "title": "Resolution Chain",
+      "purpose": "Explain the 5-step binary resolution: cache lookup, binstall metadata from Cargo.toml, GitHub Releases asset matching, cargo-quickinstall registry, and opt-in cargo build"
+    },
+    {
+      "title": "CLI Reference",
+      "purpose": "Document all flags (-y, --allow-build, --bin, --no-install), cache commands (--cache-list, --cache-clean, --cache-dir), and version specifier syntax"
+    }
+  ]
+}
