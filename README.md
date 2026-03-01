@@ -14,29 +14,14 @@ No `cargo install`. No permanent binaries. No ceremony.
 
 ## Install
 
-**Homebrew**
+| Platform | Command |
+|----------|---------|
+| macOS (Homebrew) | `brew install yfedoseev/tap/crgx` |
+| Linux / macOS (shell) | `curl -fsSL crgx.dev/install.sh \| sh` |
+| Windows (PowerShell) | `irm crgx.dev/install.ps1 \| iex` |
+| Any (Cargo) | `cargo install crgx` |
 
-```bash
-brew install yfedoseev/tap/crgx
-```
-
-**Cargo**
-
-```bash
-cargo install crgx
-```
-
-**Shell (Linux / macOS)**
-
-```bash
-curl -fsSL crgx.dev/install.sh | sh
-```
-
-**PowerShell (Windows)**
-
-```powershell
-irm crgx.dev/install.ps1 | iex
-```
+Or download pre-built binaries from [GitHub Releases](https://github.com/yfedoseev/crgx/releases).
 
 ## Usage
 
@@ -97,10 +82,11 @@ crgx --cache-clean            # remove all cached binaries
 crgx --cache-dir              # print cache directory path
 ```
 
-Cache location:
-- Linux: `~/.cache/crgx/`
-- macOS: `~/Library/Caches/crgx/`
-- Windows: `%LOCALAPPDATA%\crgx\cache`
+| OS | Cache path |
+|----|-----------|
+| Linux | `~/.cache/crgx/` |
+| macOS | `~/Library/Caches/crgx/` |
+| Windows | `%LOCALAPPDATA%\crgx\cache` |
 
 Exact versions (`tool@1.2.3`) are cached forever. Unversioned calls use a 24h staleness window.
 
