@@ -94,31 +94,6 @@ impl TargetTriple {
             },
         }
     }
-
-    /// Returns the binary extension for the host platform.
-    pub fn binary_ext() -> &'static str {
-        if cfg!(windows) { ".exe" } else { "" }
-    }
-
-    /// Returns the typical archive suffix for the host platform.
-    pub fn archive_suffix() -> &'static str {
-        if cfg!(windows) {
-            ".zip"
-        } else {
-            ".tar.gz"
-        }
-    }
-
-    /// Returns the OS family.
-    pub fn target_family() -> &'static str {
-        if cfg!(unix) {
-            "unix"
-        } else if cfg!(windows) {
-            "windows"
-        } else {
-            "unknown"
-        }
-    }
 }
 
 /// Parsed components of a target triple.
@@ -152,7 +127,9 @@ mod tests {
     fn parse_exact_version() {
         let spec = CrateSpec::parse("tokei@13.0.0").unwrap();
         assert_eq!(spec.name, "tokei");
-        assert!(matches!(spec.version, VersionReq::Exact(v) if v == semver::Version::new(13, 0, 0)));
+        assert!(
+            matches!(spec.version, VersionReq::Exact(v) if v == semver::Version::new(13, 0, 0))
+        );
     }
 
     #[test]

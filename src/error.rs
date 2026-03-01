@@ -8,7 +8,9 @@ pub enum CrgxError {
     #[error("version {version} not found for crate {crate_name}")]
     VersionNotFound { crate_name: String, version: String },
 
-    #[error("no pre-built binary found for {crate_name} v{version} ({target})\n  Run with --allow-build to compile from source.")]
+    #[error(
+        "no pre-built binary found for {crate_name} v{version} ({target})\n  Run with --allow-build to compile from source."
+    )]
     NoBinaryFound {
         crate_name: String,
         version: String,
@@ -22,10 +24,7 @@ pub enum CrgxError {
     },
 
     #[error("crate {crate_name} has multiple binaries: {bins}. Use --bin <name> to select one.")]
-    AmbiguousBinary {
-        crate_name: String,
-        bins: String,
-    },
+    AmbiguousBinary { crate_name: String, bins: String },
 
     #[error("crate {0} is not cached. Run without --no-install to download it.")]
     NotCached(String),

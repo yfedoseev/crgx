@@ -34,7 +34,10 @@ pub fn get_with_retry(agent: &ureq::Agent, url: &str) -> Result<ureq::Body, Crgx
     for attempt in 0..=MAX_RETRIES {
         if attempt > 0 {
             std::thread::sleep(Duration::from_millis(500 * u64::from(attempt)));
-            eprintln!("crgx: retrying download (attempt {}/{MAX_RETRIES})...", attempt);
+            eprintln!(
+                "crgx: retrying download (attempt {}/{MAX_RETRIES})...",
+                attempt
+            );
         }
 
         match agent.get(url).call() {
@@ -67,6 +70,10 @@ pub fn get_with_retry(agent: &ureq::Agent, url: &str) -> Result<ureq::Body, Crgx
 pub fn is_network_error(err: &CrgxError) -> bool {
     matches!(
         err,
-        CrgxError::Network(_) | CrgxError::HttpStatus { status: 500..=599, .. }
+        CrgxError::Network(_)
+            | CrgxError::HttpStatus {
+                status: 500..=599,
+                ..
+            }
     )
 }

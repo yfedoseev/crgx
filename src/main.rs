@@ -92,13 +92,15 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                 // With --no-install, just use whatever is cached
                 if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
                     let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                    let bin_path =
-                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    let bin_path = cache.bin_path(&args.spec.name, &entry.version, bin_name);
                     return exec::exec(&bin_path, &args.tool_args);
                 }
                 return Err(error::CrgxError::NotCached(args.spec.to_string()));
             }
-            eprintln!("crgx: checking crates.io for latest version of {}...", args.spec.name);
+            eprintln!(
+                "crgx: checking crates.io for latest version of {}...",
+                args.spec.name
+            );
             let info = match registry::get_crate(&args.spec.name) {
                 Ok(info) => info,
                 Err(e) if http::is_network_error(&e) => {
@@ -109,8 +111,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                             args.spec.name, entry.version
                         );
                         let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                        let bin_path =
-                            cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                        let bin_path = cache.bin_path(&args.spec.name, &entry.version, bin_name);
                         return exec::exec(&bin_path, &args.tool_args);
                     }
                     return Err(e);
@@ -122,8 +123,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
             if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {
                 cache.touch_checked(&args.spec.name, &version.to_string())?;
                 let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                let bin_path =
-                    cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
+                let bin_path = cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
                 return exec::exec(&bin_path, &args.tool_args);
             }
             version
@@ -133,8 +133,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
             let stale_entry = if let Some(entry) = cache.find_latest_cached(&args.spec.name)? {
                 if !cache.is_stale(&args.spec.name, &entry.version)? {
                     let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                    let bin_path =
-                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    let bin_path = cache.bin_path(&args.spec.name, &entry.version, bin_name);
                     return exec::exec(&bin_path, &args.tool_args);
                 }
                 // Stale — check for updates
@@ -146,8 +145,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
             if args.no_install {
                 if let Some(entry) = stale_entry {
                     let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                    let bin_path =
-                        cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                    let bin_path = cache.bin_path(&args.spec.name, &entry.version, bin_name);
                     return exec::exec(&bin_path, &args.tool_args);
                 }
                 return Err(error::CrgxError::NotCached(args.spec.to_string()));
@@ -163,8 +161,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
                         );
                         cache.touch_checked(&args.spec.name, &entry.version)?;
                         let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                        let bin_path =
-                            cache.bin_path(&args.spec.name, &entry.version, bin_name);
+                        let bin_path = cache.bin_path(&args.spec.name, &entry.version, bin_name);
                         return exec::exec(&bin_path, &args.tool_args);
                     }
                     return Err(e);
@@ -176,8 +173,7 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
             if let Some(entry) = cache.lookup(&args.spec.name, &version.to_string())? {
                 cache.touch_checked(&args.spec.name, &version.to_string())?;
                 let bin_name = args.bin.as_deref().unwrap_or(&entry.bin_name);
-                let bin_path =
-                    cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
+                let bin_path = cache.bin_path(&args.spec.name, &version.to_string(), bin_name);
                 return exec::exec(&bin_path, &args.tool_args);
             }
             version
@@ -220,11 +216,8 @@ fn run_crate(args: cli::RunArgs) -> Result<i32, error::CrgxError> {
 
     // Download and extract
     eprintln!("crgx: downloading from {}...", resolution.source);
-    let binary_data = download::download_and_extract(
-        &resolution.url,
-        &bin_name,
-        resolution.bin_path.as_deref(),
-    )?;
+    let binary_data =
+        download::download_and_extract(&resolution.url, &bin_name, resolution.bin_path.as_deref())?;
 
     // Store in cache
     cache.store(
@@ -273,7 +266,11 @@ fn resolve_bin_name(
     })
 }
 
-fn prompt_download(crate_name: &str, version: &str, auto_yes: bool) -> Result<(), error::CrgxError> {
+fn prompt_download(
+    crate_name: &str,
+    version: &str,
+    auto_yes: bool,
+) -> Result<(), error::CrgxError> {
     if auto_yes {
         return Ok(());
     }

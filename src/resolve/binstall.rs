@@ -34,7 +34,8 @@ pub fn resolve(
         return Ok(None);
     }
 
-    let bin_path = bin_dir.map(|d| expand_template(&d, crate_name, version, target, bin_name, repo));
+    let bin_path =
+        bin_dir.map(|d| expand_template(&d, crate_name, version, target, bin_name, repo));
 
     Ok(Some(Resolution {
         url,
@@ -46,10 +47,10 @@ pub fn resolve(
 fn resolve_pkg_url(meta: &BinstallMeta, target: &str) -> Option<String> {
     // Check exact target match in overrides first
     for ov in &meta.overrides {
-        if ov.target == target {
-            if let Some(url) = &ov.pkg_url {
-                return Some(url.clone());
-            }
+        if ov.target == target
+            && let Some(url) = &ov.pkg_url
+        {
+            return Some(url.clone());
         }
     }
     meta.pkg_url.clone()
@@ -57,10 +58,10 @@ fn resolve_pkg_url(meta: &BinstallMeta, target: &str) -> Option<String> {
 
 fn resolve_bin_dir(meta: &BinstallMeta, target: &str) -> Option<String> {
     for ov in &meta.overrides {
-        if ov.target == target {
-            if let Some(d) = &ov.bin_dir {
-                return Some(d.clone());
-            }
+        if ov.target == target
+            && let Some(d) = &ov.bin_dir
+        {
+            return Some(d.clone());
         }
     }
     meta.bin_dir.clone()
@@ -93,7 +94,7 @@ pub fn expand_template(
     // Strip trailing .git from repo URL
     let repo = repo.trim_end_matches(".git");
 
-    let result = template
+    template
         .replace("{ name }", name)
         .replace("{name}", name)
         .replace("{ version }", version)
@@ -119,9 +120,7 @@ pub fn expand_template(
         .replace("{ target-libc }", parts.libc())
         .replace("{target-libc}", parts.libc())
         .replace("{ target-family }", target_family_for(target))
-        .replace("{target-family}", target_family_for(target));
-
-    result
+        .replace("{target-family}", target_family_for(target))
 }
 
 fn archive_suffix_for(target: &str) -> String {

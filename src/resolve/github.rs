@@ -35,9 +35,7 @@ pub fn resolve(
     ];
 
     for tag in &tag_formats {
-        let url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}"
-        );
+        let url = format!("https://api.github.com/repos/{owner}/{repo}/releases/tags/{tag}");
 
         let agent = http::agent();
         let mut response = match agent
@@ -218,8 +216,7 @@ mod tests {
 
     #[test]
     fn parse_github_url_with_git() {
-        let (owner, repo) =
-            parse_github_repo("https://github.com/owner/repo.git").unwrap();
+        let (owner, repo) = parse_github_repo("https://github.com/owner/repo.git").unwrap();
         assert_eq!(owner, "owner");
         assert_eq!(repo, "repo");
     }
@@ -257,7 +254,10 @@ mod tests {
         ];
         let found = find_matching_asset(&assets, "tool", "1.0.0", "x86_64-unknown-linux-gnu");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().name, "tool-x86_64-unknown-linux-gnu-v1.0.0.tar.gz");
+        assert_eq!(
+            found.unwrap().name,
+            "tool-x86_64-unknown-linux-gnu-v1.0.0.tar.gz"
+        );
     }
 
     #[test]
@@ -266,8 +266,7 @@ mod tests {
             name: "myapp-linux-x86_64-unknown-linux-gnu.tar.gz".to_string(),
             browser_download_url: "https://example.com/myapp.tar.gz".to_string(),
         }];
-        let found =
-            find_matching_asset(&assets, "myapp", "1.0.0", "x86_64-unknown-linux-gnu");
+        let found = find_matching_asset(&assets, "myapp", "1.0.0", "x86_64-unknown-linux-gnu");
         assert!(found.is_some());
     }
 

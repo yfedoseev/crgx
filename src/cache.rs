@@ -35,8 +35,7 @@ impl Cache {
     /// Open the cache directory, creating it if necessary.
     pub fn open() -> Result<Self, CrgxError> {
         let root = cache_dir()?;
-        fs::create_dir_all(root.join("bin"))
-            .map_err(|e| CrgxError::CacheDir(e.to_string()))?;
+        fs::create_dir_all(root.join("bin")).map_err(|e| CrgxError::CacheDir(e.to_string()))?;
         Ok(Cache { root })
     }
 
@@ -64,7 +63,11 @@ impl Cache {
     }
 
     /// Look up a specific version in the cache.
-    pub fn lookup(&self, crate_name: &str, version: &str) -> Result<Option<CacheMetadata>, CrgxError> {
+    pub fn lookup(
+        &self,
+        crate_name: &str,
+        version: &str,
+    ) -> Result<Option<CacheMetadata>, CrgxError> {
         let path = self.metadata_path(crate_name, version);
         if !path.exists() {
             return Ok(None);
@@ -133,8 +136,8 @@ impl Cache {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let json = serde_json::to_string_pretty(&meta)
-            .map_err(|e| CrgxError::CacheDir(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(&meta).map_err(|e| CrgxError::CacheDir(e.to_string()))?;
         fs::write(&path, json)?;
         Ok(())
     }
@@ -183,8 +186,8 @@ impl Cache {
             last_checked: now,
             target: crate::config::TargetTriple::host().to_string(),
         };
-        let json = serde_json::to_string_pretty(&meta)
-            .map_err(|e| CrgxError::CacheDir(e.to_string()))?;
+        let json =
+            serde_json::to_string_pretty(&meta).map_err(|e| CrgxError::CacheDir(e.to_string()))?;
         let meta_path = self.metadata_path(crate_name, version);
         fs::write(&meta_path, json)?;
 
@@ -227,7 +230,11 @@ impl Cache {
                 });
             }
         }
-        entries.sort_by(|a, b| a.crate_name.cmp(&b.crate_name).then(a.version.cmp(&b.version)));
+        entries.sort_by(|a, b| {
+            a.crate_name
+                .cmp(&b.crate_name)
+                .then(a.version.cmp(&b.version))
+        });
         Ok(entries)
     }
 
@@ -343,12 +350,8 @@ mod tests {
         };
         fs::create_dir_all(cache.root.join("bin")).unwrap();
 
-        cache
-            .store("crate_a", "1.0.0", "a", b"a", "test")
-            .unwrap();
-        cache
-            .store("crate_b", "2.0.0", "b", b"b", "test")
-            .unwrap();
+        cache.store("crate_a", "1.0.0", "a", b"a", "test").unwrap();
+        cache.store("crate_b", "2.0.0", "b", b"b", "test").unwrap();
 
         let entries = cache.list().unwrap();
         assert_eq!(entries.len(), 2);

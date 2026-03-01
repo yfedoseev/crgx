@@ -81,7 +81,7 @@ fn extract_tar<R: Read>(
     let ext = if cfg!(windows) { ".exe" } else { "" };
     let bin_filename = format!("{bin_name}{ext}");
 
-    let mut entries = archive
+    let entries = archive
         .entries()
         .map_err(|e| CrgxError::Extraction(e.to_string()))?;
 
@@ -90,17 +90,14 @@ fn extract_tar<R: Read>(
     let mut found: Option<Vec<u8>> = None;
     let mut fallback: Option<Vec<u8>> = None;
 
-    while let Some(entry) = entries.next() {
+    for entry in entries {
         let mut entry = entry.map_err(|e| CrgxError::Extraction(e.to_string()))?;
         let path = entry
             .path()
             .map_err(|e| CrgxError::Extraction(e.to_string()))?
             .to_path_buf();
 
-        let file_name = path
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or("");
+        let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
 
         // Check bin_path_hint
         if let Some(hint) = bin_path_hint {
@@ -138,10 +135,12 @@ fn extract_tar<R: Read>(
         }
     }
 
-    found.or(fallback).ok_or_else(|| CrgxError::BinaryNotInArchive {
-        crate_name: bin_name.to_string(),
-        bin_name: bin_filename,
-    })
+    found
+        .or(fallback)
+        .ok_or_else(|| CrgxError::BinaryNotInArchive {
+            crate_name: bin_name.to_string(),
+            bin_name: bin_filename,
+        })
 }
 
 fn extract_zip(
@@ -157,13 +156,13 @@ fn extract_zip(
     let bin_filename = format!("{bin_name}{ext}");
 
     // If we have a bin_path_hint, try it first
-    if let Some(hint) = bin_path_hint {
-        if let Ok(mut file) = archive.by_name(hint) {
-            let mut data = Vec::new();
-            file.read_to_end(&mut data)
-                .map_err(|e| CrgxError::Extraction(e.to_string()))?;
-            return Ok(data);
-        }
+    if let Some(hint) = bin_path_hint
+        && let Ok(mut file) = archive.by_name(hint)
+    {
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)
+            .map_err(|e| CrgxError::Extraction(e.to_string()))?;
+        return Ok(data);
     }
 
     // Search for the binary by filename
@@ -174,10 +173,7 @@ fn extract_zip(
             .map_err(|e| CrgxError::Extraction(e.to_string()))?;
 
         let path = Path::new(file.name()).to_path_buf();
-        let file_name = path
-            .file_name()
-            .and_then(|f| f.to_str())
-            .unwrap_or("");
+        let file_name = path.file_name().and_then(|f| f.to_str()).unwrap_or("");
 
         if file_name == bin_filename || (ext.is_empty() && file_name == bin_name) {
             let mut data = Vec::new();

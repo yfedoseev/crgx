@@ -47,17 +47,14 @@ struct ApiVersion {
 pub fn get_crate(name: &str) -> Result<CrateInfo, CrgxError> {
     let url = format!("{CRATES_IO_API}/crates/{name}");
     let agent = http::agent();
-    let mut response = agent
-        .get(&url)
-        .call()
-        .map_err(|e| match &e {
-            ureq::Error::StatusCode(404) => CrgxError::CrateNotFound(name.to_string()),
-            ureq::Error::StatusCode(code) => CrgxError::HttpStatus {
-                url: url.clone(),
-                status: *code,
-            },
-            _ => CrgxError::Network(e.to_string()),
-        })?;
+    let mut response = agent.get(&url).call().map_err(|e| match &e {
+        ureq::Error::StatusCode(404) => CrgxError::CrateNotFound(name.to_string()),
+        ureq::Error::StatusCode(code) => CrgxError::HttpStatus {
+            url: url.clone(),
+            status: *code,
+        },
+        _ => CrgxError::Network(e.to_string()),
+    })?;
 
     let body = response
         .body_mut()
@@ -82,10 +79,7 @@ pub fn get_crate(name: &str) -> Result<CrateInfo, CrgxError> {
 }
 
 /// Resolve which version to use based on the version requirement.
-pub fn resolve_version(
-    info: &CrateInfo,
-    req: &VersionReq,
-) -> Result<semver::Version, CrgxError> {
+pub fn resolve_version(info: &CrateInfo, req: &VersionReq) -> Result<semver::Version, CrgxError> {
     match req {
         VersionReq::Exact(v) => {
             // Verify it exists
@@ -112,25 +106,17 @@ pub fn resolve_version(
 }
 
 /// Download and parse the Cargo.toml from a .crate file to extract binstall metadata.
-pub fn fetch_cargo_toml(
-    name: &str,
-    version: &str,
-) -> Result<Option<BinstallMeta>, CrgxError> {
-    let url = format!(
-        "https://static.crates.io/crates/{name}/{name}-{version}.crate"
-    );
+pub fn fetch_cargo_toml(name: &str, version: &str) -> Result<Option<BinstallMeta>, CrgxError> {
+    let url = format!("https://static.crates.io/crates/{name}/{name}-{version}.crate");
 
     let agent = http::agent();
-    let mut response = agent
-        .get(&url)
-        .call()
-        .map_err(|e| match &e {
-            ureq::Error::StatusCode(code) => CrgxError::HttpStatus {
-                url: url.clone(),
-                status: *code,
-            },
-            _ => CrgxError::Network(e.to_string()),
-        })?;
+    let mut response = agent.get(&url).call().map_err(|e| match &e {
+        ureq::Error::StatusCode(code) => CrgxError::HttpStatus {
+            url: url.clone(),
+            status: *code,
+        },
+        _ => CrgxError::Network(e.to_string()),
+    })?;
 
     let body = response
         .body_mut()
@@ -141,7 +127,10 @@ pub fn fetch_cargo_toml(
     let gz = flate2::read::GzDecoder::new(std::io::Cursor::new(body));
     let mut archive = tar::Archive::new(gz);
 
-    for entry in archive.entries().map_err(|e| CrgxError::Extraction(e.to_string()))? {
+    for entry in archive
+        .entries()
+        .map_err(|e| CrgxError::Extraction(e.to_string()))?
+    {
         let mut entry = entry.map_err(|e| CrgxError::Extraction(e.to_string()))?;
         let path = entry
             .path()
@@ -167,6 +156,7 @@ pub fn fetch_cargo_toml(
 pub struct BinstallMeta {
     pub pkg_url: Option<String>,
     pub bin_dir: Option<String>,
+    #[allow(dead_code)]
     pub pkg_fmt: Option<String>,
     pub overrides: Vec<BinstallOverride>,
 }
@@ -176,6 +166,7 @@ pub struct BinstallOverride {
     pub target: String,
     pub pkg_url: Option<String>,
     pub bin_dir: Option<String>,
+    #[allow(dead_code)]
     pub pkg_fmt: Option<String>,
 }
 
@@ -192,18 +183,36 @@ fn parse_binstall_meta(cargo_toml: &str) -> Result<Option<BinstallMeta>, CrgxErr
         None => return Ok(None),
     };
 
-    let pkg_url = meta.get("pkg-url").and_then(|v| v.as_str()).map(String::from);
-    let bin_dir = meta.get("bin-dir").and_then(|v| v.as_str()).map(String::from);
-    let pkg_fmt = meta.get("pkg-fmt").and_then(|v| v.as_str()).map(String::from);
+    let pkg_url = meta
+        .get("pkg-url")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let bin_dir = meta
+        .get("bin-dir")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let pkg_fmt = meta
+        .get("pkg-fmt")
+        .and_then(|v| v.as_str())
+        .map(String::from);
 
     let mut overrides = Vec::new();
     if let Some(overrides_table) = meta.get("overrides").and_then(|v| v.as_table()) {
         for (target, values) in overrides_table {
             overrides.push(BinstallOverride {
                 target: target.clone(),
-                pkg_url: values.get("pkg-url").and_then(|v| v.as_str()).map(String::from),
-                bin_dir: values.get("bin-dir").and_then(|v| v.as_str()).map(String::from),
-                pkg_fmt: values.get("pkg-fmt").and_then(|v| v.as_str()).map(String::from),
+                pkg_url: values
+                    .get("pkg-url")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                bin_dir: values
+                    .get("bin-dir")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
+                pkg_fmt: values
+                    .get("pkg-fmt")
+                    .and_then(|v| v.as_str())
+                    .map(String::from),
             });
         }
     }
@@ -296,8 +305,7 @@ version = "1.0.0"
                 bin_names: vec![],
             }],
         };
-        let v =
-            resolve_version(&info, &VersionReq::Exact(semver::Version::new(1, 2, 3))).unwrap();
+        let v = resolve_version(&info, &VersionReq::Exact(semver::Version::new(1, 2, 3))).unwrap();
         assert_eq!(v, semver::Version::new(1, 2, 3));
     }
 
@@ -308,8 +316,6 @@ version = "1.0.0"
             repository: None,
             versions: vec![],
         };
-        assert!(
-            resolve_version(&info, &VersionReq::Exact(semver::Version::new(1, 0, 0))).is_err()
-        );
+        assert!(resolve_version(&info, &VersionReq::Exact(semver::Version::new(1, 0, 0))).is_err());
     }
 }

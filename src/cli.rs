@@ -77,7 +77,10 @@ pub fn parse_args(args: impl Iterator<Item = String>) -> Result<Command, String>
             }
             _ => {
                 // First non-flag arg is the crate specifier
-                crate_spec = Some(CrateSpec::parse(arg).map_err(|e| format!("invalid crate specifier '{arg}': {e}"))?);
+                crate_spec = Some(
+                    CrateSpec::parse(arg)
+                        .map_err(|e| format!("invalid crate specifier '{arg}': {e}"))?,
+                );
             }
         }
         i += 1;
@@ -153,7 +156,15 @@ mod tests {
 
     #[test]
     fn parse_flags_before_crate() {
-        let cmd = parse(&["-y", "--allow-build", "--bin", "rg", "ripgrep@14.1.0", "--help"]).unwrap();
+        let cmd = parse(&[
+            "-y",
+            "--allow-build",
+            "--bin",
+            "rg",
+            "ripgrep@14.1.0",
+            "--help",
+        ])
+        .unwrap();
         match cmd {
             Command::Run(args) => {
                 assert!(args.yes);
@@ -169,9 +180,18 @@ mod tests {
 
     #[test]
     fn parse_cache_commands() {
-        assert!(matches!(parse(&["--cache-list"]).unwrap(), Command::CacheList));
-        assert!(matches!(parse(&["--cache-clean"]).unwrap(), Command::CacheClean));
-        assert!(matches!(parse(&["--cache-dir"]).unwrap(), Command::CacheDir));
+        assert!(matches!(
+            parse(&["--cache-list"]).unwrap(),
+            Command::CacheList
+        ));
+        assert!(matches!(
+            parse(&["--cache-clean"]).unwrap(),
+            Command::CacheClean
+        ));
+        assert!(matches!(
+            parse(&["--cache-dir"]).unwrap(),
+            Command::CacheDir
+        ));
     }
 
     #[test]
