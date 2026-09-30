@@ -171,17 +171,26 @@ fn no_binary_error_lists_every_target_tried() {
     );
     let cache = tempfile::tempdir().unwrap();
 
-    let mut expected = host_target().to_string();
-    if let Some(fallback) = fallback_target() {
-        expected = format!("{expected}, {fallback}");
-    }
-    crgx(&mock, cache.path())
+    let output = crgx(&mock, cache.path())
         .args(["tool@1.0.0"])
         .assert()
         .code(1)
-        .stderr(predicate::str::contains(format!(
-            "no pre-built binary found for tool v1.0.0 ({expected})"
-        )));
+        .get_output()
+        .stderr
+        .clone();
+    let stderr = String::from_utf8(output).unwrap();
+
+    // The full list depends on the system (e.g. Rosetta on macOS), so check
+    // its shape: host first, then the first fallback, all in one list.
+    let prefix = "no pre-built binary found for tool v1.0.0 (";
+    let start = stderr.find(prefix).expect(&stderr) + prefix.len();
+    let end = start + stderr[start..].find(')').expect(&stderr);
+    let tried: Vec<&str> = stderr[start..end].split(", ").collect();
+    assert_eq!(tried[0], host_target(), "{stderr}");
+    match fallback_target() {
+        Some(fallback) => assert_eq!(tried.get(1), Some(&fallback.as_str()), "{stderr}"),
+        None => assert_eq!(tried.len(), 1, "{stderr}"),
+    }
 }
 
 #[test]
