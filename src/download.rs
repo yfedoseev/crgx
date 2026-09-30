@@ -19,6 +19,8 @@ pub fn download_and_extract(
 
     let agent = http::download_agent();
     let body = http::get_with_retry(&agent, url)?
+        .with_config()
+        .limit(http::MAX_DOWNLOAD_SIZE)
         .read_to_vec()
         .map_err(|e| CrgxError::Network(format!("download error: {e}")))?;
 
@@ -68,7 +70,7 @@ fn extract_tar_xz(
     bin_name: &str,
     bin_path_hint: Option<&str>,
 ) -> Result<Vec<u8>, CrgxError> {
-    let xz = xz2::read::XzDecoder::new(io::Cursor::new(data));
+    let xz = liblzma::read::XzDecoder::new(io::Cursor::new(data));
     extract_tar(xz, bin_name, bin_path_hint)
 }
 
@@ -188,4 +190,91 @@ fn extract_zip(
         crate_name: bin_name.to_string(),
         bin_name: bin_filename,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    const EXT: &str = if cfg!(windows) { ".exe" } else { "" };
+
+    fn tar_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut tar = tar::Builder::new(Vec::new());
+        for (path, data) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o755);
+            header.set_cksum();
+            tar.append_data(&mut header, path, *data).unwrap();
+        }
+        tar.into_inner().unwrap()
+    }
+
+    fn gz(data: &[u8]) -> Vec<u8> {
+        let mut enc = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        enc.write_all(data).unwrap();
+        enc.finish().unwrap()
+    }
+
+    fn xz(data: &[u8]) -> Vec<u8> {
+        let mut enc = liblzma::write::XzEncoder::new(Vec::new(), 6);
+        enc.write_all(data).unwrap();
+        enc.finish().unwrap()
+    }
+
+    fn zip_bytes(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut w = zip::ZipWriter::new(io::Cursor::new(Vec::new()));
+        for (path, data) in entries {
+            w.start_file(*path, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            w.write_all(data).unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn extract_tar_gz_nested_binary() {
+        let bin = format!("tool-1.0/tool{EXT}");
+        let archive = gz(&tar_bytes(&[
+            ("tool-1.0/README.md", b"docs"),
+            (&bin, b"BIN"),
+        ]));
+        assert_eq!(extract_tar_gz(&archive, "tool", None).unwrap(), b"BIN");
+    }
+
+    #[test]
+    fn extract_tar_xz_binary() {
+        let bin = format!("tool{EXT}");
+        let archive = xz(&tar_bytes(&[(&bin, b"XZBIN")]));
+        assert_eq!(extract_tar_xz(&archive, "tool", None).unwrap(), b"XZBIN");
+    }
+
+    #[test]
+    fn extract_tar_prefers_bin_path_hint() {
+        let a = format!("a/tool{EXT}");
+        let b = format!("dist/x86_64/tool{EXT}");
+        let archive = gz(&tar_bytes(&[(&a, b"WRONG"), (&b, b"RIGHT")]));
+        let hint = format!("dist/x86_64/tool{EXT}");
+        assert_eq!(
+            extract_tar_gz(&archive, "tool", Some(&hint)).unwrap(),
+            b"RIGHT"
+        );
+    }
+
+    #[test]
+    fn extract_zip_binary() {
+        let bin = format!("tool-1.0/tool{EXT}");
+        let archive = zip_bytes(&[("LICENSE", b"MIT"), (&bin, b"ZIPBIN")]);
+        assert_eq!(extract_zip(&archive, "tool", None).unwrap(), b"ZIPBIN");
+    }
+
+    #[test]
+    fn missing_binary_is_an_error() {
+        let archive = gz(&tar_bytes(&[("other", b"x")]));
+        assert!(matches!(
+            extract_tar_gz(&archive, "tool", None),
+            Err(CrgxError::BinaryNotInArchive { .. })
+        ));
+    }
 }

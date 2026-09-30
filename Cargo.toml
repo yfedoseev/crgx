@@ -1,6 +1,6 @@
 [package]
 name = "crgx"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Run any crate binary instantly — fetch, cache, and execute without cargo install"
 license = "MIT"
@@ -12,24 +12,20 @@ keywords = ["cargo", "binary", "runner", "npx", "cli"]
 categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
-ureq = { version = "3", default-features = false, features = ["rustls", "json"] }
+ureq = { version = "3", default-features = false, features = ["rustls", "json", "socks-proxy", "win-system-proxy"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 toml = "1.0"
 flate2 = "1"
 tar = "0.4"
 zip = "8"
-xz2 = "0.1"
+liblzma = "0.4"
 thiserror = "2"
-anyhow = "1"
-dirs = "6"
+dirs = "7"
 semver = "1"
-url = "2"
 tempfile = "3"
 
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
-mockito = "1"
 tempfile = "3"

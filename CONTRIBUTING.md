@@ -66,8 +66,27 @@ cargo build
 ### Running Tests
 
 ```bash
-cargo test
+cargo test --bins               # unit tests
+cargo test --test e2e           # end-to-end tests (hermetic, no network)
+cargo test --test e2e -- --ignored   # against the real crates.io / GitHub
 ```
+
+The end-to-end tests in `tests/e2e.rs` run the real `crgx` binary against a
+local mock server, reached directly or through test SOCKS5/HTTP proxies. For
+source builds they put a stub `cargo` on `PATH`. The harness (`tests/support/`)
+redirects crgx with these environment variables, which also help when
+debugging:
+
+| Variable | Default |
+|----------|---------|
+| `CRGX_CACHE_DIR` | platform cache dir + `/crgx` |
+| `CRGX_CRATES_IO_API` | `https://crates.io/api/v1` |
+| `CRGX_CRATES_STATIC` | `https://static.crates.io/crates` |
+| `CRGX_GITHUB_API` | `https://api.github.com` |
+| `CRGX_QUICKINSTALL_URL` | `https://github.com/cargo-bins/cargo-quickinstall/releases/download` |
+
+New behavior should come with unit tests next to the code and an end-to-end
+test in `tests/e2e.rs`.
 
 ### Running the Dev Build
 
@@ -83,7 +102,7 @@ cargo run -- tokei .
 - Pass clippy checks (`cargo clippy -- -D warnings`)
 - Use meaningful variable and function names
 - Add doc comments for public APIs
-- Use `thiserror` for error types, `anyhow` for error propagation
+- Use `thiserror` for error types
 
 ### Git Commit Messages
 

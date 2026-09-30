@@ -3,8 +3,7 @@ use serde::Deserialize;
 use crate::config::VersionReq;
 use crate::error::CrgxError;
 use crate::http;
-
-const CRATES_IO_API: &str = "https://crates.io/api/v1";
+use crate::upstream;
 
 /// Crate information from crates.io.
 #[derive(Debug)]
@@ -45,7 +44,7 @@ struct ApiVersion {
 
 /// Fetch crate information from crates.io.
 pub fn get_crate(name: &str) -> Result<CrateInfo, CrgxError> {
-    let url = format!("{CRATES_IO_API}/crates/{name}");
+    let url = format!("{}/crates/{name}", upstream::crates_io_api());
     let agent = http::agent();
     let mut response = agent.get(&url).call().map_err(|e| match &e {
         ureq::Error::StatusCode(404) => CrgxError::CrateNotFound(name.to_string()),
@@ -107,7 +106,10 @@ pub fn resolve_version(info: &CrateInfo, req: &VersionReq) -> Result<semver::Ver
 
 /// Download and parse the Cargo.toml from a .crate file to extract binstall metadata.
 pub fn fetch_cargo_toml(name: &str, version: &str) -> Result<Option<BinstallMeta>, CrgxError> {
-    let url = format!("https://static.crates.io/crates/{name}/{name}-{version}.crate");
+    let url = format!(
+        "{}/{name}/{name}-{version}.crate",
+        upstream::crates_static()
+    );
 
     let agent = http::agent();
     let mut response = agent.get(&url).call().map_err(|e| match &e {
@@ -120,6 +122,8 @@ pub fn fetch_cargo_toml(name: &str, version: &str) -> Result<Option<BinstallMeta
 
     let body = response
         .body_mut()
+        .with_config()
+        .limit(http::MAX_DOWNLOAD_SIZE)
         .read_to_vec()
         .map_err(|e| CrgxError::Network(e.to_string()))?;
 

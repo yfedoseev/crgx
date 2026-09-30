@@ -1,4 +1,4 @@
-use crate::config::CrateSpec;
+use crate::config::{BuildOpts, CrateSpec};
 
 /// Parsed CLI command.
 #[derive(Debug)]
@@ -25,6 +25,8 @@ pub struct RunArgs {
     pub allow_build: bool,
     pub bin: Option<String>,
     pub offline: bool,
+    /// Feature selection for source builds (non-default implies building from source).
+    pub build: BuildOpts,
     pub tool_args: Vec<String>,
 }
 
@@ -43,6 +45,7 @@ pub fn parse_args(args: impl Iterator<Item = String>) -> Result<Command, String>
     let mut allow_build = false;
     let mut bin: Option<String> = None;
     let mut offline = false;
+    let mut build = BuildOpts::default();
     let mut crate_spec: Option<CrateSpec> = None;
     let mut tool_args: Vec<String> = Vec::new();
 
@@ -67,6 +70,18 @@ pub fn parse_args(args: impl Iterator<Item = String>) -> Result<Command, String>
                 }
                 bin = Some(args[i].clone());
             }
+            "--features" | "-F" => {
+                i += 1;
+                if i >= args.len() {
+                    return Err(format!("{arg} requires a value"));
+                }
+                build.add_features(&args[i]);
+            }
+            _ if arg.starts_with("--features=") => {
+                build.add_features(&arg["--features=".len()..]);
+            }
+            "--no-default-features" => build.no_default_features = true,
+            "--all-features" => build.all_features = true,
             "--cache-list" => return Ok(Command::CacheList),
             "--cache-clean" => return Ok(Command::CacheClean),
             "--cache-dir" => return Ok(Command::CacheDir),
@@ -93,6 +108,7 @@ pub fn parse_args(args: impl Iterator<Item = String>) -> Result<Command, String>
             allow_build,
             bin,
             offline,
+            build,
             tool_args,
         })),
         None => Ok(Command::Help),
@@ -114,6 +130,15 @@ FLAGS:
     --bin <name>        Specify which binary to run (for multi-binary crates)
     --offline           Only run if already cached; no network access
 
+BUILD FROM SOURCE (implies compiling with cargo; cached separately):
+    -F, --features <list>       Comma-separated features to enable
+    --no-default-features       Disable the crate's default features
+    --all-features              Enable all features
+
+PROXY:
+    Honors HTTPS_PROXY, HTTP_PROXY, ALL_PROXY and NO_PROXY.
+    Supported schemes: http://, https://, socks4://, socks4a://, socks5://, socks5h://
+
 CACHE MANAGEMENT:
     --cache-list        Show cached binaries
     --cache-clean       Remove all cached binaries
@@ -127,7 +152,8 @@ VERSION SPECIFIERS:
 EXAMPLES:
     crgx tokei .                        Count lines of code
     crgx -v tokei .                      Show download progress
-    crgx ripgrep@14.1.0 --help          Run specific version",
+    crgx ripgrep@14.1.0 --help          Run specific version
+    crgx -F cli cargo-about --version   Build with the `cli` feature",
         version = env!("CARGO_PKG_VERSION")
     )
 }
@@ -253,6 +279,71 @@ mod tests {
                 assert!(!args.verbose); // Not consumed by crgx
             }
             _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn parse_features_forms() {
+        let cmd = parse(&[
+            "--features",
+            "a,b",
+            "-F",
+            "c",
+            "--features=d e",
+            "tool",
+            "--features",
+            "x",
+        ])
+        .unwrap();
+        match cmd {
+            Command::Run(args) => {
+                assert_eq!(args.build.features, ["a", "b", "c", "d", "e"]);
+                assert!(!args.build.no_default_features);
+                assert!(!args.build.all_features);
+                // after the crate spec, flags belong to the tool
+                assert_eq!(args.tool_args, vec!["--features", "x"]);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn parse_feature_toggles() {
+        let cmd = parse(&["--no-default-features", "--all-features", "tool"]).unwrap();
+        match cmd {
+            Command::Run(args) => {
+                assert!(args.build.no_default_features);
+                assert!(args.build.all_features);
+                assert!(args.build.features.is_empty());
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn parse_no_features_is_default() {
+        match parse(&["tool"]).unwrap() {
+            Command::Run(args) => assert!(args.build.is_default()),
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn parse_features_missing_value() {
+        assert!(parse(&["--features"]).is_err());
+        assert!(parse(&["-F"]).is_err());
+    }
+
+    #[test]
+    fn help_mentions_new_flags() {
+        let help = help_text();
+        for needle in [
+            "--features",
+            "--no-default-features",
+            "--all-features",
+            "socks5h",
+        ] {
+            assert!(help.contains(needle), "help is missing {needle}");
         }
     }
 }

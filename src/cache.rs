@@ -150,6 +150,7 @@ impl Cache {
         bin_name: &str,
         binary_data: &[u8],
         source: &str,
+        target: &str,
     ) -> Result<(), CrgxError> {
         let dir = self.root.join("bin").join(crate_name).join(version);
         fs::create_dir_all(&dir)?;
@@ -184,7 +185,7 @@ impl Cache {
             source: source.to_string(),
             installed_at: now,
             last_checked: now,
-            target: crate::config::TargetTriple::host().to_string(),
+            target: target.to_string(),
         };
         let json =
             serde_json::to_string_pretty(&meta).map_err(|e| CrgxError::CacheDir(e.to_string()))?;
@@ -263,6 +264,9 @@ impl Cache {
 }
 
 fn cache_dir() -> Result<PathBuf, CrgxError> {
+    if let Some(dir) = std::env::var_os("CRGX_CACHE_DIR").filter(|d| !d.is_empty()) {
+        return Ok(PathBuf::from(dir));
+    }
     let dir = dirs::cache_dir()
         .ok_or_else(|| CrgxError::CacheDir("could not determine cache directory".into()))?
         .join("crgx");
@@ -282,7 +286,14 @@ mod tests {
         fs::create_dir_all(cache.root.join("bin")).unwrap();
 
         cache
-            .store("mycrate", "1.0.0", "mybin", b"fake-binary", "test")
+            .store(
+                "mycrate",
+                "1.0.0",
+                "mybin",
+                b"fake-binary",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
             .unwrap();
 
         let meta = cache.lookup("mycrate", "1.0.0").unwrap().unwrap();
@@ -304,17 +315,107 @@ mod tests {
         fs::create_dir_all(cache.root.join("bin")).unwrap();
 
         cache
-            .store("mycrate", "1.0.0", "mybin", b"v1", "test")
+            .store(
+                "mycrate",
+                "1.0.0",
+                "mybin",
+                b"v1",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
             .unwrap();
         cache
-            .store("mycrate", "2.0.0", "mybin", b"v2", "test")
+            .store(
+                "mycrate",
+                "2.0.0",
+                "mybin",
+                b"v2",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
             .unwrap();
         cache
-            .store("mycrate", "1.5.0", "mybin", b"v1.5", "test")
+            .store(
+                "mycrate",
+                "1.5.0",
+                "mybin",
+                b"v1.5",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
             .unwrap();
 
         let latest = cache.find_latest_cached("mycrate").unwrap().unwrap();
         assert_eq!(latest.version, "2.0.0");
+    }
+
+    #[test]
+    fn cache_records_resolved_target() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = Cache {
+            root: tmp.path().to_path_buf(),
+        };
+        cache
+            .store(
+                "tool",
+                "1.0.0",
+                "tool",
+                b"bin",
+                "GitHub Releases",
+                "x86_64-unknown-linux-musl",
+            )
+            .unwrap();
+        let meta = cache.lookup("tool", "1.0.0").unwrap().unwrap();
+        assert_eq!(meta.target, "x86_64-unknown-linux-musl");
+    }
+
+    #[test]
+    fn cache_feature_builds_are_separate() {
+        let tmp = tempfile::tempdir().unwrap();
+        let cache = Cache {
+            root: tmp.path().to_path_buf(),
+        };
+        let mut opts = crate::config::BuildOpts::default();
+        opts.add_features("cli");
+        let key = opts.cache_key("tool");
+
+        cache
+            .store(
+                "tool",
+                "1.0.0",
+                "tool",
+                b"prebuilt",
+                "binstall",
+                "x86_64-unknown-linux-gnu",
+            )
+            .unwrap();
+        cache
+            .store(
+                &key,
+                "1.0.0",
+                "tool",
+                b"with-cli",
+                "cargo build",
+                "x86_64-unknown-linux-gnu",
+            )
+            .unwrap();
+
+        assert_eq!(
+            fs::read(cache.bin_path("tool", "1.0.0", "tool")).unwrap(),
+            b"prebuilt"
+        );
+        assert_eq!(
+            fs::read(cache.bin_path(&key, "1.0.0", "tool")).unwrap(),
+            b"with-cli"
+        );
+        assert_eq!(
+            cache.find_latest_cached(&key).unwrap().unwrap().source,
+            "cargo build"
+        );
+        assert_eq!(
+            cache.find_latest_cached("tool").unwrap().unwrap().source,
+            "binstall"
+        );
     }
 
     #[test]
@@ -326,7 +427,14 @@ mod tests {
         fs::create_dir_all(cache.root.join("bin")).unwrap();
 
         cache
-            .store("mycrate", "1.0.0", "mybin", b"bin", "test")
+            .store(
+                "mycrate",
+                "1.0.0",
+                "mybin",
+                b"bin",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
             .unwrap();
 
         // Just stored — should not be stale
@@ -350,8 +458,26 @@ mod tests {
         };
         fs::create_dir_all(cache.root.join("bin")).unwrap();
 
-        cache.store("crate_a", "1.0.0", "a", b"a", "test").unwrap();
-        cache.store("crate_b", "2.0.0", "b", b"b", "test").unwrap();
+        cache
+            .store(
+                "crate_a",
+                "1.0.0",
+                "a",
+                b"a",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
+            .unwrap();
+        cache
+            .store(
+                "crate_b",
+                "2.0.0",
+                "b",
+                b"b",
+                "test",
+                "x86_64-unknown-linux-gnu",
+            )
+            .unwrap();
 
         let entries = cache.list().unwrap();
         assert_eq!(entries.len(), 2);
