@@ -1,11 +1,16 @@
 use std::process::Command;
 
+use crate::config::{BuildOpts, TargetTriple};
 use crate::error::CrgxError;
 use crate::resolve::Resolution;
 use crate::verbose::verbose;
 
 /// Build from source using `cargo install` into a temp directory.
-pub fn resolve(crate_name: &str, version: &str) -> Result<Resolution, CrgxError> {
+pub fn resolve(
+    crate_name: &str,
+    version: &str,
+    build_opts: &BuildOpts,
+) -> Result<Resolution, CrgxError> {
     verbose!("crgx: building {crate_name} v{version} from source...");
 
     let tmp_dir = tempfile::tempdir()
@@ -20,6 +25,7 @@ pub fn resolve(crate_name: &str, version: &str) -> Result<Resolution, CrgxError>
             version,
             crate_name,
         ])
+        .args(build_opts.cargo_args())
         .status()
         .map_err(|e| CrgxError::CargoBuild(format!("failed to run cargo: {e}")))?;
 
@@ -39,5 +45,6 @@ pub fn resolve(crate_name: &str, version: &str) -> Result<Resolution, CrgxError>
         url: format!("file://{}", bin_dir.display()),
         source: "cargo build".to_string(),
         bin_path: None,
+        target: TargetTriple::host().to_string(),
     })
 }

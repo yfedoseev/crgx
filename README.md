@@ -92,6 +92,27 @@ No `cargo install` step burning CI minutes.
 | `--allow-build` | Allow compiling from source if no pre-built binary found |
 | `--bin <name>` | Specify which binary to run (for multi-binary crates) |
 | `--offline` | Only run if already cached; no network access |
+| `-F`, `--features <list>` | Build from source with these features (comma-separated) |
+| `--no-default-features` | Build from source without default features |
+| `--all-features` | Build from source with all features |
+
+The feature flags compile the crate with `cargo install`, since a pre-built binary can't change its features. Builds with non-default features are cached separately from the pre-built binary (for example as `cargo-about+features=cli`):
+
+```bash
+crgx -F cli cargo-about generate about.hbs   # cargo install cargo-about --features cli
+```
+
+## Proxies
+
+crgx uses the standard proxy environment variables, the same ones curl and cargo use:
+
+```bash
+export HTTPS_PROXY=http://proxy.corp:3128      # HTTP CONNECT proxy
+export ALL_PROXY=socks5h://127.0.0.1:1080      # SOCKS5; the proxy resolves hostnames
+export NO_PROXY=localhost,.internal.corp       # hosts that bypass the proxy
+```
+
+Supported schemes: `http://`, `https://`, `socks4://`, `socks4a://`, `socks5://`, `socks5h://`. Credentials go in the URL (`http://user:pass@host:port`). On Windows, the system proxy setting is also used when no variable is set. Run with `-v` to see which proxy is in use.
 
 ## Cache management
 
@@ -120,6 +141,18 @@ crgx tries each source in order to find a pre-built binary:
 5. **cargo build** — opt-in with `--allow-build`, compiles from source as a last resort
 
 Any crate that works with `cargo binstall` works with crgx automatically.
+
+When there's no binary for your exact target, each source also tries compatible targets, in this order:
+
+| Your platform | Also tries |
+|---------------|------------|
+| Linux (glibc) | `*-linux-musl` (static binaries run anywhere) |
+| Linux (musl build of crgx) | `*-linux-gnu`, only if the system has glibc (Alpine's `gcompat` doesn't count) |
+| macOS Apple Silicon | `universal-apple-darwin`, `universal2-apple-darwin`, `x86_64-apple-darwin` (only if Rosetta is installed) |
+| macOS Intel | `universal-apple-darwin`, `universal2-apple-darwin` |
+| Windows MSVC | `*-pc-windows-gnu` (`aarch64-pc-windows-gnullvm`, then `x86_64-pc-windows-msvc`, on ARM64) |
+
+If you hit GitHub's API rate limit (60 requests/hour without a token), set `GITHUB_TOKEN` or `GH_TOKEN`. crgx only sends the token to `api.github.com`.
 
 ## How it works
 

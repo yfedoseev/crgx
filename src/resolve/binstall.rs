@@ -8,7 +8,7 @@ use crate::resolve::Resolution;
 pub fn resolve(
     crate_name: &str,
     version: &str,
-    target: &str,
+    targets: &[String],
     bin_name: &str,
     info: &CrateInfo,
 ) -> Result<Option<Resolution>, CrgxError> {
@@ -17,31 +17,47 @@ pub fn resolve(
         None => return Ok(None),
     };
 
-    let pkg_url = resolve_pkg_url(&meta, target);
-    let pkg_url = match pkg_url {
-        Some(u) => u,
-        None => return Ok(None),
-    };
-
-    let bin_dir = resolve_bin_dir(&meta, target);
-
     let repo = info.repository.as_deref().unwrap_or("");
 
-    let url = expand_template(&pkg_url, crate_name, version, target, bin_name, repo);
-
-    // HEAD request to verify URL exists
-    if !url_exists(&url)? {
-        return Ok(None);
+    for candidate in candidates(&meta, crate_name, version, targets, bin_name, repo) {
+        // HEAD request to verify URL exists
+        if url_exists(&candidate.url)? {
+            return Ok(Some(candidate));
+        }
     }
 
-    let bin_path =
-        bin_dir.map(|d| expand_template(&d, crate_name, version, target, bin_name, repo));
+    Ok(None)
+}
 
-    Ok(Some(Resolution {
-        url,
-        source: "binstall".to_string(),
-        bin_path,
-    }))
+/// Expand the binstall templates for each target, in preference order.
+fn candidates(
+    meta: &BinstallMeta,
+    crate_name: &str,
+    version: &str,
+    targets: &[String],
+    bin_name: &str,
+    repo: &str,
+) -> Vec<Resolution> {
+    let mut out: Vec<Resolution> = Vec::new();
+    for target in targets {
+        let Some(pkg_url) = resolve_pkg_url(meta, target) else {
+            continue;
+        };
+        let url = expand_template(&pkg_url, crate_name, version, target, bin_name, repo);
+        // A target-independent pkg-url expands identically for every target
+        if out.iter().any(|r| r.url == url) {
+            continue;
+        }
+        let bin_path = resolve_bin_dir(meta, target)
+            .map(|d| expand_template(&d, crate_name, version, target, bin_name, repo));
+        out.push(Resolution {
+            url,
+            source: "binstall".to_string(),
+            bin_path,
+            target: target.clone(),
+        });
+    }
+    out
 }
 
 fn resolve_pkg_url(meta: &BinstallMeta, target: &str) -> Option<String> {
@@ -152,6 +168,7 @@ fn url_exists(url: &str) -> Result<bool, CrgxError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::registry::BinstallOverride;
 
     #[test]
     fn expand_basic_template() {
@@ -216,6 +233,88 @@ mod tests {
             "",
         );
         assert_eq!(result, "x86_64-linux-gnu");
+    }
+
+    fn meta(pkg_url: Option<&str>, overrides: Vec<BinstallOverride>) -> BinstallMeta {
+        BinstallMeta {
+            pkg_url: pkg_url.map(String::from),
+            bin_dir: Some("{ bin }-{ target }/{ bin }{ binary-ext }".to_string()),
+            pkg_fmt: None,
+            overrides,
+        }
+    }
+
+    fn targets(ts: &[&str]) -> Vec<String> {
+        ts.iter().map(|t| t.to_string()).collect()
+    }
+
+    #[test]
+    fn candidates_follow_target_order() {
+        let m = meta(Some("{ repo }/dl/{ name }-{ target }.tar.gz"), vec![]);
+        let c = candidates(
+            &m,
+            "tool",
+            "1.0.0",
+            &targets(&["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]),
+            "tool",
+            "https://github.com/o/r",
+        );
+        assert_eq!(c.len(), 2);
+        assert_eq!(
+            c[0].url,
+            "https://github.com/o/r/dl/tool-x86_64-unknown-linux-gnu.tar.gz"
+        );
+        assert_eq!(c[0].target, "x86_64-unknown-linux-gnu");
+        assert_eq!(
+            c[1].url,
+            "https://github.com/o/r/dl/tool-x86_64-unknown-linux-musl.tar.gz"
+        );
+        assert_eq!(c[1].target, "x86_64-unknown-linux-musl");
+        // bin-dir is expanded for the matching target, not the host
+        assert_eq!(
+            c[1].bin_path.as_deref(),
+            Some("tool-x86_64-unknown-linux-musl/tool")
+        );
+    }
+
+    #[test]
+    fn candidates_use_per_target_overrides() {
+        let m = meta(
+            None,
+            vec![BinstallOverride {
+                target: "x86_64-unknown-linux-musl".to_string(),
+                pkg_url: Some("{ repo }/musl.tgz".to_string()),
+                bin_dir: None,
+                pkg_fmt: None,
+            }],
+        );
+        let c = candidates(
+            &m,
+            "tool",
+            "1.0.0",
+            &targets(&["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]),
+            "tool",
+            "https://r",
+        );
+        // gnu has no pkg-url at all; musl comes from its override
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].url, "https://r/musl.tgz");
+        assert_eq!(c[0].target, "x86_64-unknown-linux-musl");
+    }
+
+    #[test]
+    fn candidates_dedupe_target_independent_urls() {
+        let m = meta(Some("{ repo }/dl/{ name }.tar.gz"), vec![]);
+        let c = candidates(
+            &m,
+            "tool",
+            "1.0.0",
+            &targets(&["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"]),
+            "tool",
+            "https://r",
+        );
+        assert_eq!(c.len(), 1);
+        assert_eq!(c[0].target, "x86_64-unknown-linux-gnu");
     }
 
     #[test]

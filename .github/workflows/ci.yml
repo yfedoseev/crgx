@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Weekly: catch new security advisories and upstream breakage (GitHub, crates.io)
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -71,8 +75,77 @@ jobs:
       - name: Build
         run: cargo build --verbose
 
-      - name: Run tests
-        run: cargo test --verbose
+      - name: Unit tests
+        run: cargo test --verbose --bins
+
+      # Hermetic: runs the real binary against a local mock of crates.io,
+      # GitHub Releases and quickinstall, through test SOCKS5/HTTP proxies.
+      - name: End-to-end tests
+        run: cargo test --verbose --test e2e
+
+  # A musl-built crgx (what Homebrew ships on Linux) must fall back to -gnu
+  # binaries on a glibc system.
+  test-musl:
+    name: Test (musl build on glibc host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: musl
+
+      - name: Unit and end-to-end tests
+        run: cargo test --verbose --target x86_64-unknown-linux-musl
+
+  # On a system without glibc, crgx must never pick -gnu binaries.
+  # gcompat installs a fake glibc loader that must not count as glibc.
+  test-alpine:
+    name: Test (Alpine, no glibc${{ matrix.extra && format(', {0}', matrix.extra) || '' }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        extra: ["", "gcompat"]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Unit and end-to-end tests
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src rust:alpine sh -c \
+            "apk add --no-cache musl-dev ${{ matrix.extra }} && cargo test --verbose --target-dir /tmp/target"
+
+  # Against the real crates.io and GitHub, directly and through proxies.
+  network:
+    name: Network smoke tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Real downloads, SOCKS5h and HTTP CONNECT proxies, musl fallback
+        run: cargo test --verbose --test e2e -- --ignored
+        env:
+          # Avoid the 60 requests/hour unauthenticated GitHub API limit
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   audit:
     name: Security Audit
@@ -82,3 +155,6 @@ jobs:
 
       - name: Run security audit
         uses: actions-rust-lang/audit@v1
+        with:
+          # Fail on unmaintained/unsound/yanked crates too, not only vulnerabilities
+          denyWarnings: true
